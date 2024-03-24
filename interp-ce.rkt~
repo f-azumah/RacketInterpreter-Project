@@ -58,15 +58,6 @@
 ; Handling errors and some trickier cases will give bonus points. 
 (define (interp-ce exp)
   ; Might add helpers or other code here...
-  (define (extend-env env bindings)
-    (foldl (lambda (binding env)
-             (let ([x (car binding)]
-                   [e (cdr binding)])
-               (hash-set env x (interp e env))))
-           env
-           bindings))
-                   
-                    
   (define (interp exp env)
     (match exp
       [(? symbol? x) (hash-ref env x)]
@@ -81,75 +72,22 @@
        ;; evaluate e0 to v0
        (define v0 (interp e0 env))
        (interp e-body (hash-set env x v0))]
-      [`(let ([,xs ,es] ,rest) ,e-body)
-       (define vs (interp es env))
-       (define env+ (extend-env (hash-set env xs vs) (list (cons xs vs))))
-       (interp e-body env+)]
-      [`(let* ([,xs ,es] ,rest) ,e-body)
-       (define vs (interp es env))
-       (define env+ (hash-set env xs vs))
-       (interp-ce `(let* ,rest ,e-body) env+)]
+      ;;[`(let ([,xs ,es] ...) ,e-body) 'todo]
+      ;;[`(let* ([,xs ,es] ...) ,e-body) 'todo]
+      [`(and)
+       #t]
       [`(and ,e0 ,e-rest ...)
        (if (interp e0 env)
            (interp `(and ,@e-rest) env)
            #f)]
-      [`(or ,es ,e-rest ...)
-       (let ([vs (interp es env)])
-       (if vs
-           vs
-           (interp `(or ,@e-rest) env)))]
+      [`(or ,es ...) 'todo]
       [(? number? n) n]
       [(? boolean? b) b]
       [''() '()]
-      [`(+ ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (+ v0 v1)]
-      [`(- ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (- v1 v0)]
-      [`(* ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (* v0 v1)]
-      [`(= ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (equal? v0 v1)]
-      [`(equal? ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (equal? v0 v1)]
-      [`(list ,@es) (map (lambda (e) (interp e env)) es)]
-      [`(cons ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (cons v0 v1)]
-      [`(car ,e0) (car (interp e0 env))]
-      [`(cdr ,e0) (cdr (interp e0 env))]
-      [`(null? ,e0) (null? (interp e0 env))]
-      [_ (error "Unknown expression")]
       [`(,ef ,eargs ...)
-       (let ([clo-to-apply (interp ef env)])
-         (match clo-to-apply
-           [`(closure (lambda (,x) ,e-body) ,env+)
-            (interp e-body (hash-set env+ x (interp eargs env)))]))]))
+       'todo]))
        
   ;; you need to cook up a starting environment: at first it can just
   ;; be the empty hash, but later on you may want to add things like
   ;; builtins here.
-  (define starting-env
-    (make-hash
-     '(
-       (+ . +)
-       (- . -)
-       (* . *)
-       (= . equal?)
-       (equal? . equal?)
-       (list . list)
-       (cons . cons)
-       (car . car)
-       (cdr . cdr)
-       (null? . null?))))
-  (interp exp starting-env))
+  (interp exp (hash)))
