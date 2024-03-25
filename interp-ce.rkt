@@ -89,15 +89,16 @@
        (define vs (interp es env))
        (define env+ (hash-set env xs vs))
        (interp-ce `(let* ,rest ,e-body) env+)]
+      [`(and) #t]
       [`(and ,e0 ,e-rest ...)
        (if (interp e0 env)
            (interp `(and ,@e-rest) env)
            #f)]
+      [`(or) #f]
       [`(or ,es ,e-rest ...)
-       (let ([vs (interp es env)])
-       (if vs
-           vs
-           (interp `(or ,@e-rest) env)))]
+       (if (interp es env)
+           (interp es env)
+           (interp `(or ,@e-rest) env))]
       [(? number? n) n]
       [(? boolean? b) b]
       [''() '()]
