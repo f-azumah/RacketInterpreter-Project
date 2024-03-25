@@ -57,15 +57,7 @@
 ; runtime error, you should return `(error ,message)---giving some reasonable string error message.
 ; Handling errors and some trickier cases will give bonus points. 
 (define (interp-ce exp)
-  ; Might add helpers or other code here...
-  (define (extend-env env bindings)
-    (foldl (lambda (binding env)
-             (let ([x (car binding)]
-                   [e (cdr binding)])
-               (hash-set env x (interp e env))))
-           env
-           bindings))
-                   
+  ; Might add helpers or other code here...             
                     
   (define (interp exp env)
     (match exp
@@ -80,15 +72,27 @@
       [`(let ([,x ,e0]) ,e-body)
        ;; evaluate e0 to v0
        (define v0 (interp e0 env))
-       (interp e-body (hash-set env x v0))]
-      [`(let ([,xs ,es] ,rest) ,e-body)
-       (define vs (interp es env))
-       (define env+ (extend-env (hash-set env xs vs) (list (cons xs vs))))
-       (interp e-body env+)]
-      [`(let* ([,xs ,es] ,rest) ,e-body)
-       (define vs (interp es env))
-       (define env+ (hash-set env xs vs))
-       (interp-ce `(let* ,rest ,e-body) env+)]
+       (interp e-body (hash-set env x v0))
+       (displayln (format "Extended environment for binding ~a: ~a" x (hash-set env x v0)))]
+      [`(let ([,xs ,es] ...) ,e-body)
+       ;;(displayln xs)
+       ;;(displayln es)
+       (define v0s (map (lambda (e) (interp e env)) es))
+       (define new-env (foldl (lambda (x v env)
+                               (hash-set env x (interp v env)))
+                             env
+                             xs
+                             v0s))
+       (displayln (format "Extended environment for bindings ~a: ~a" xs new-env))
+       (interp e-body new-env)]
+      [`(let* () ,e-body) (interp e-body env)]
+      [`(let* ([,xs ,es] ...) ,e-body)
+       (define vs (map (lambda (e) (interp e env)) es))
+       (interp e-body (foldl (lambda (x v env+)
+                               (hash-set env+ x v))
+                             env
+                             xs
+                             vs))]
       [`(and) #t]
       [`(and ,e0 ,e-rest ...)
        (if (interp e0 env)
@@ -105,14 +109,17 @@
       [`(+ ,e0 ,e1)
        (define v0 (interp e0 env))
        (define v1 (interp e1 env))
+       ;(printf "v0: ~a, v1: ~a\n" v0 v1)
        (+ v0 v1)]
       [`(- ,e0 ,e1)
        (define v0 (interp e0 env))
        (define v1 (interp e1 env))
-       (- v1 v0)]
+       ;(printf "v0: ~a, v1: ~a\n" v0 v1)
+       (- v0 v1)]
       [`(* ,e0 ,e1)
        (define v0 (interp e0 env))
        (define v1 (interp e1 env))
+       ;(printf "v0: ~a, v1: ~a\n" v0 v1)
        (* v0 v1)]
       [`(= ,e0 ,e1)
        (define v0 (interp e0 env))
@@ -130,27 +137,29 @@
       [`(car ,e0) (car (interp e0 env))]
       [`(cdr ,e0) (cdr (interp e0 env))]
       [`(null? ,e0) (null? (interp e0 env))]
-      [_ (error "Unknown expression")]
       [`(,ef ,eargs ...)
        (let ([clo-to-apply (interp ef env)])
+         (displayln (format "Value of clo-to-apply: ~a" clo-to-apply))
          (match clo-to-apply
            [`(closure (lambda (,x) ,e-body) ,env+)
-            (interp e-body (hash-set env+ x (interp eargs env)))]))]))
+            (interp e-body (hash-set env+ x (interp eargs env)))]
+           [`(builtin ,op) (apply (eval op (make-base-namespace)) (interp eargs env))]
+           [(? symbol? s) (hash-ref env s)]))]))
        
   ;; you need to cook up a starting environment: at first it can just
   ;; be the empty hash, but later on you may want to add things like
   ;; builtins here.
   (define starting-env
-    (make-hash
+    (make-immutable-hash
      '(
-       (+ . +)
-       (- . -)
-       (* . *)
-       (= . equal?)
-       (equal? . equal?)
-       (list . list)
-       (cons . cons)
-       (car . car)
-       (cdr . cdr)
-       (null? . null?))))
+       (+ . (builtin +))
+       (- . (builtin -))
+       (* . (builtin *))
+       (= . (builtin =))
+       (equal? . (builtin equal?))
+       (list . (builtin list))
+       (cons . (builtin cons))
+       (car . (builtin car))
+       (cdr . (builtin cdr))
+       (null? . (builtin null?)))))
   (interp exp starting-env))

@@ -1,0 +1,1 @@
+#hash((* . (builtin *)) (+ . (builtin +)) (- . (builtin -)) (= . (builtin =)) (U . (builtin U)) (car . (builtin car)) (cdr . (builtin cdr)) (cons . (builtin cons)) (equal? . (builtin equal?)) (list . (builtin list)) (null? . (builtin null?)))
