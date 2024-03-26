@@ -118,6 +118,14 @@
            (interp `(or ,@e-rest) env))]
       [(? number? n) n]
       [(? boolean? b) b]
+      [`(list ,@es) (map (lambda (e) (interp e env)) es)]
+      [`(cons ,e0 ,e1)
+       (define v0 (interp e0 env))
+       (define v1 (interp e1 env))
+       (cons v0 v1)]
+      [`(car ,e0) (car (interp e0 env))]
+      [`(cdr ,e0) (cdr (interp e0 env))]
+      [`(null? ,e0) (null? (interp e0 env))]
       [''() '()]
       [`(,ef ,earg0, earg1)
        (match (interp ef env)
