@@ -151,8 +151,10 @@
                                   (hash-set env x v))
                                 env+
                                 xs
-                                vs))])]))
-       
+                                vs))]
+         [(? procedure? p)
+          (apply p (map (lambda (e) (interp e env)) eargs))])]))
+        
   ;; you need to cook up a starting environment: at first it can just
   ;; be the empty hash, but later on you may want to add things like
   ;; builtins here.
