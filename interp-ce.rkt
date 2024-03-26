@@ -119,15 +119,6 @@
       [(? number? n) n]
       [(? boolean? b) b]
       [''() '()]
-      [`(,ef ,eargs ...)
-       (match (interp ef env)
-         [`(closure (lambda ,xs ,e-body) ,env+)
-          (define vs (map (lambda (e) (interp e env)) eargs))
-          (interp e-body (foldl (lambda (x v env)
-                                  (hash-set env x v))
-                                env+
-                                xs
-                                vs))])]
       [`(,ef ,earg0, earg1)
        (match (interp ef env)
          [`(closure (lambda (,x ,y) ,e-body) ,env+)
@@ -143,7 +134,16 @@
                    (list (interp earg0 env) (interp earg1 env))))
           (interp e-body env++)]
          [(? procedure? p)
-          (apply p (list (interp earg0 env)(interp earg1 env)))])]))
+          (apply p (list (interp earg0 env)(interp earg1 env)))])]
+      [`(,ef ,eargs ...)
+       (match (interp ef env)
+         [`(closure (lambda ,xs ,e-body) ,env+)
+          (define vs (map (lambda (e) (interp e env)) eargs))
+          (interp e-body (foldl (lambda (x v env)
+                                  (hash-set env x v))
+                                env+
+                                xs
+                                vs))])]))
        
   ;; you need to cook up a starting environment: at first it can just
   ;; be the empty hash, but later on you may want to add things like
