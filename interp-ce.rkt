@@ -58,108 +58,105 @@
 ; Handling errors and some trickier cases will give bonus points. 
 (define (interp-ce exp)
   ; Might add helpers or other code here...             
-                    
-  (define (interp exp env)
+  (define (interp exp env) 
     (match exp
       [(? symbol? x) (hash-ref env x)]
+      
       [`(lambda ,args ,body) 
        ;; closures must be represented this way
        `(closure ,exp ,env)]
+      
+      [`(lambda (,xs ...) ,e)
+       `(closure (lambda (,@xs) ,e) ,env)]
+
+      #;[`((lambda ,args ,body) ,eargs ...)
+       (match eargs
+         [`(lambda ,args ,body) `(closure (lambda ,args ,body) , env)]
+         [`((lambda ,args ,body) . ,rest)
+          (let ([inner-closure `(closure (lambda ,args ,body) ,env)])
+            (cons inner-closure (interp env rest)))])]
+      
       [`(if ,e-g ,e-t ,e-f)
        (if (interp e-g env)
            (interp e-t env)
            (interp e-f env))]
+      
       [`(let ([,x ,e0]) ,e-body)
-       ;; evaluate e0 to v0
-       (define v0 (interp e0 env))
-       (interp e-body (hash-set env x v0))
-       (displayln (format "Extended environment for binding ~a: ~a" x (hash-set env x v0)))]
-      [`(let ([,xs ,es] ...) ,e-body)
-       ;;(displayln xs)
-       ;;(displayln es)
-       (define v0s (map (lambda (e) (interp e env)) es))
-       (define new-env (foldl (lambda (x v env)
-                               (hash-set env x (interp v env)))
-                             env
-                             xs
-                             v0s))
-       (displayln (format "Extended environment for bindings ~a: ~a" xs new-env))
+       (define new-env (hash-set env x (interp e0 env)))
        (interp e-body new-env)]
-      [`(let* () ,e-body) (interp e-body env)]
-      [`(let* ([,xs ,es] ...) ,e-body)
+      
+      [`(let ([,xs ,es] ...) ,e-body)
        (define vs (map (lambda (e) (interp e env)) es))
-       (interp e-body (foldl (lambda (x v env+)
-                               (hash-set env+ x v))
-                             env
-                             xs
-                             vs))]
-      [`(and) #t]
+       (define env+
+         (foldl (lambda (x v env+) (hash-set env+ x v)) env xs vs))
+       (interp e-body env+)]
+      
+      [`(let* () ,e-body) (interp e-body env)]
+      
+      [`(let* ([,x ,e0]) ,e-body)
+       (interp e-body (hash-set env x (interp e0 env)))]
+      
+      [`(let* ([,xs ,es] ,b ...) ,e-body)
+       (define env+
+         (foldl (lambda (b env)
+                  (match b
+                    [`(,x ,e)
+                     (hash-set env x (interp e env))]))
+                env
+                `((,xs ,es) ,@b)))
+       (interp e-body env+)]
+      
+      [`(and) #t] 
       [`(and ,e0 ,e-rest ...)
        (if (interp e0 env)
            (interp `(and ,@e-rest) env)
            #f)]
+      
       [`(or) #f]
       [`(or ,es ,e-rest ...)
-       (if (interp es env)
-           (interp es env)
+       (or (interp es env)
            (interp `(or ,@e-rest) env))]
       [(? number? n) n]
       [(? boolean? b) b]
       [''() '()]
-      [`(+ ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       ;(printf "v0: ~a, v1: ~a\n" v0 v1)
-       (+ v0 v1)]
-      [`(- ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       ;(printf "v0: ~a, v1: ~a\n" v0 v1)
-       (- v0 v1)]
-      [`(* ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       ;(printf "v0: ~a, v1: ~a\n" v0 v1)
-       (* v0 v1)]
-      [`(= ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (equal? v0 v1)]
-      [`(equal? ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (equal? v0 v1)]
-      [`(list ,@es) (map (lambda (e) (interp e env)) es)]
-      [`(cons ,e0 ,e1)
-       (define v0 (interp e0 env))
-       (define v1 (interp e1 env))
-       (cons v0 v1)]
-      [`(car ,e0) (car (interp e0 env))]
-      [`(cdr ,e0) (cdr (interp e0 env))]
-      [`(null? ,e0) (null? (interp e0 env))]
       [`(,ef ,eargs ...)
-       (let ([clo-to-apply (interp ef env)])
-         (displayln (format "Value of clo-to-apply: ~a" clo-to-apply))
-         (match clo-to-apply
-           [`(closure (lambda (,x) ,e-body) ,env+)
-            (interp e-body (hash-set env+ x (interp eargs env)))]
-           [`(builtin ,op) (apply (eval op (make-base-namespace)) (interp eargs env))]
-           [(? symbol? s) (hash-ref env s)]))]))
+       (match (interp ef env)
+         [`(closure (lambda ,xs ,e-body) ,env+)
+          (define vs (map (lambda (e) (interp e env)) eargs))
+          (interp e-body (foldl (lambda (x v env)
+                                  (hash-set env x v))
+                                env+
+                                xs
+                                vs))])]
+      [`(,ef ,earg0, earg1)
+       (match (interp ef env)
+         [`(closure (lambda (,x ,y) ,e-body) ,env+)
+          (define env++
+            (hash-set (hash-set env+ x (interp earg0 env)) y (interp earg1 env)))
+          (interp e-body env++)]
+         [`(closure (lambda ,xs ,e-body) ,env+)
+          (define env++
+            (foldl (lambda (x v env)
+                     (hash-set env x v))
+                   env+
+                   xs
+                   (list (interp earg0 env) (interp earg1 env))))
+          (interp e-body env++)]
+         [(? procedure? p)
+          (apply p (list (interp earg0 env)(interp earg1 env)))])]))
        
   ;; you need to cook up a starting environment: at first it can just
   ;; be the empty hash, but later on you may want to add things like
   ;; builtins here.
-  (define starting-env
-    (make-immutable-hash
-     '(
-       (+ . (builtin +))
-       (- . (builtin -))
-       (* . (builtin *))
-       (= . (builtin =))
-       (equal? . (builtin equal?))
-       (list . (builtin list))
-       (cons . (builtin cons))
-       (car . (builtin car))
-       (cdr . (builtin cdr))
-       (null? . (builtin null?)))))
+  (define starting-env 
+    (hash '+ +
+          '- -
+          '* *
+          '= =
+          'cons cons
+          'car car
+          'cdr cdr
+          'list list
+          'null? null?
+          'equal? equal?))
   (interp exp starting-env))
